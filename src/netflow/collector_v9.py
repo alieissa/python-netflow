@@ -238,7 +238,7 @@ class Header:
     """
     def __init__(self, data):
         pack = struct.unpack('!HHIIII', data[:20])
-
+        header = struct.unpack('!H', data[:2])[0]
         self.version = pack[0]
         self.count = pack[1]  # not sure if correct. softflowd: no of flows
         self.uptime = pack[2]
@@ -247,7 +247,7 @@ class Header:
         self.source_id = pack[5]
 
 
-class ExportPacket:
+class ExportV9Packet:
     """The flow record holds the header and all template and data flowsets.
     """
     def __init__(self, data, templates):

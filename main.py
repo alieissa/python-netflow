@@ -2,10 +2,7 @@
 
 """
 Example collector script for NetFlow v9.
-This file belongs to https://github.com/cooox/python-netflow-v9-softflowd.
-
-Copyright 2017, 2018 Dominik Pataky <dev@bitkeks.eu>
-Licensed under MIT License. See LICENSE.
+Forked from https://github.com/cooox/python-netflow-v9-softflowd.
 """
 
 import logging
@@ -15,6 +12,7 @@ import socketserver
 import time
 import json
 import os.path
+import struct
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -25,10 +23,12 @@ ch.setFormatter(formatter)
 logging.getLogger().addHandler(ch)
 
 try:
-    from netflow.collector_v9 import ExportPacket
+    from netflow.collector_v9 import ExportV9Packet
+    from netflow.collector_v5 import ExportV5Packet
 except ImportError:
-    logging.warn("Netflow v9 not installed as package! Running from directory.")
-    from src.netflow.collector_v9 import ExportPacket
+    logging.warn("Netflow collector not installed as package! Running from directory.")
+    from src.netflow.collector_v9 import ExportV9Packet
+    from src.netflow.collector_v5 import ExportV5Packet
 
 parser = argparse.ArgumentParser(description='A sample netflow collector.')
 parser.add_argument('--host', type=str, default='',
@@ -43,7 +43,7 @@ parser.add_argument('--debug', '-D', action='store_true',
 
 class SoftflowUDPHandler(socketserver.BaseRequestHandler):
     # We need to save the templates our NetFlow device
-    # send over time. Templates are not resended every
+    # send over time. Templates are not resent every
     # time a flow is sent to the collector.
     TEMPLATES = {}
 
@@ -57,6 +57,10 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
     def set_output_file(cls, path):
         cls.output_file = path
 
+    def get_netflow_version(self, data):
+        version = struct.unpack('!H', data[:2])[0]
+        return version
+
     def handle(self):
         if not os.path.exists(self.output_file):
             with open(self.output_file, 'w') as fh:
@@ -69,8 +73,15 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
         host = self.client_address[0]
         s = "Received data from {}, length {}".format(host, len(data))
         logging.debug(s)
-        export = ExportPacket(data, self.TEMPLATES)
-        self.TEMPLATES.update(export.templates)
+
+        # Unpack netflow packet
+        netflow_version = self.get_netflow_version(data)
+        if(netflow_version == 5):
+            export = ExportV5Packet(data)
+        elif(netflow_version == 9):
+            export = ExportV9Packet(data, self.TEMPLATES)
+            self.TEMPLATES.update(export.templates)
+
         s = "Processed ExportPacket with {} flows.".format(export.header.count)
         logging.debug(s)
 
@@ -81,7 +92,6 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
             fh.write(json.dumps(existing_data))
 
 
-
 if __name__ == "__main__":
     args = parser.parse_args()
     SoftflowUDPHandler.set_output_file(args.output_file)
@@ -89,7 +99,6 @@ if __name__ == "__main__":
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-
     try:
         logging.debug("Starting the NetFlow listener")
         server.serve_forever(poll_interval=0.5)

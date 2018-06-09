@@ -1,13 +1,8 @@
-# Python NetFlow v9 parser and UDP collector
-This script is able to parse incoming UDP NetFlow packets of **NetFlow version 9**.
+# Python NetFlow Collector
+This script is able to parse incoming UDP NetFlow packets of **NetFlow v9 and v5**.
+It used **[NetFlow v9 Collector] (https://github.com/bitkeks/python-netflow-v9-softflowd)** script of Dominik Pataky (dev@bitkeks.eu) as a basis.
 
-Version 9 is the first NetFlow version using templates.
-Templates make dynamically sized and configured NetFlow data flowsets possible,
-which makes the collector's job harder.
 
-Copyright 2017, 2018 Dominik Pataky <dev@bitkeks.eu>
-
-Licensed under MIT License. See LICENSE.
 
 ## Using the collector and analyzer
 In this repo you also find `main.py` and `analyze_json.py`.
@@ -35,6 +30,8 @@ nice graphs or calculate broader statistics.
 
 ## Resources
 * [Cisco NetFlow v9 paper](http://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html)
+* [Cisco NetFlow v1-v8
+paper] (https://www.cisco.com/c/en/us/td/docs/net_mgmt/netflow_collection_engine/3-6/user/guide/format.html)
 * [RFC "Cisco Systems NetFlow Services Export Version 9"](https://tools.ietf.org/html/rfc3954)
 
 ## Development environment

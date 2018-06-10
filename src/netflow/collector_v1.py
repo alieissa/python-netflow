@@ -62,13 +62,17 @@ class ExportV1Packet:
         self.flows = []
         self.header = Header(data)
 
-        offset = 24
+        # Determine if data is a valid v1 netflow record
+        def is_record(data, length): return len(data) > length
+
+        offset = 16
         record_length = 48
         for flow_count in range(0, self.header.count):
+            # if(is_record(data[offset:], record_length)):
             flow = DataFlow(data[offset:])
             self.flows.append(flow)
             offset += record_length
 
     def __repr__(self):
-        return "<ExportV5Packet counting {} records>"\
+        return "<ExportV1Packet counting {} records>"\
             .format(self.header.count)

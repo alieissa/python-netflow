@@ -25,10 +25,12 @@ logging.getLogger().addHandler(ch)
 try:
     from netflow.collector_v9 import ExportV9Packet
     from netflow.collector_v5 import ExportV5Packet
+    from netflow.collector_v1 import ExportV1Packet
 except ImportError:
     logging.warn("Netflow collector not installed as package! Running from directory.")
     from src.netflow.collector_v9 import ExportV9Packet
     from src.netflow.collector_v5 import ExportV5Packet
+    from src.netflow.collector_v1 import ExportV1Packet
 
 parser = argparse.ArgumentParser(description='A sample netflow collector.')
 parser.add_argument('--host', type=str, default='',
@@ -76,13 +78,16 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
 
         # Unpack netflow packet
         netflow_version = self.get_netflow_version(data)
-        if(netflow_version == 5):
+        if(netflow_version == 1):
+            export = ExportV1Packet(data)
+        elif(netflow_version == 5):
             export = ExportV5Packet(data)
         elif(netflow_version == 9):
             export = ExportV9Packet(data, self.TEMPLATES)
             self.TEMPLATES.update(export.templates)
 
-        s = "Processed ExportPacket with {} flows.".format(export.header.count)
+        s = "Processed v{} packet with {} flows."\
+            .format(export.header.version, export.header.count)
         logging.debug(s)
 
         # Append new flows

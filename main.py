@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Example collector script for NetFlow v9.
+Entry point for Netflow collectors.
 Forked from https://github.com/cooox/python-netflow-v9-softflowd.
 """
 
@@ -9,10 +9,9 @@ import logging
 import argparse
 import sys
 import socketserver
-import time
-import json
 import os.path
 import struct
+import time
 
 
 logging.getLogger().setLevel(logging.INFO)
@@ -25,10 +24,14 @@ logging.getLogger().addHandler(ch)
 try:
     from netflow.collector_v9 import ExportV9Packet
     from netflow.collector_v5 import ExportV5Packet
+    from netflow.collector_v1 import ExportV1Packet
+    from netflow.recorder import Recorder
 except ImportError:
     logging.warn("Netflow collector not installed as package! Running from directory.")
     from src.netflow.collector_v9 import ExportV9Packet
     from src.netflow.collector_v5 import ExportV5Packet
+    from src.netflow.collector_v1 import ExportV1Packet
+    from src.netflow.recorder import Recorder
 
 parser = argparse.ArgumentParser(description='A sample netflow collector.')
 parser.add_argument('--host', type=str, default='',
@@ -57,18 +60,18 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
     def set_output_file(cls, path):
         cls.output_file = path
 
+    @classmethod
+    def set_recorder(cls, recorder):
+        cls.recorder = recorder
+
     def get_netflow_version(self, data):
         version = struct.unpack('!H', data[:2])[0]
         return version
 
     def handle(self):
-        if not os.path.exists(self.output_file):
-            with open(self.output_file, 'w') as fh:
-                fh.write(json.dumps({}))
-
-        with open(self.output_file, 'r') as fh:
-            existing_data = json.loads(fh.read())
-
+        """
+        Handle incoming NetFlow packets.
+        """
         data = self.request[0]
         host = self.client_address[0]
         s = "Received data from {}, length {}".format(host, len(data))
@@ -76,24 +79,32 @@ class SoftflowUDPHandler(socketserver.BaseRequestHandler):
 
         # Unpack netflow packet
         netflow_version = self.get_netflow_version(data)
-        if(netflow_version == 5):
+        if(netflow_version == 1):
+            export = ExportV1Packet(data)
+        elif(netflow_version == 5):
             export = ExportV5Packet(data)
         elif(netflow_version == 9):
             export = ExportV9Packet(data, self.TEMPLATES)
             self.TEMPLATES.update(export.templates)
 
-        s = "Processed ExportPacket with {} flows.".format(export.header.count)
-        logging.debug(s)
-
         # Append new flows
-        existing_data[time.time()] = [flow.data for flow in export.flows]
+        flows = [flow.data for flow in export.flows]
+        self.recorder.save(flows)
 
-        with open(self.output_file, 'w') as fh:
-            fh.write(json.dumps(existing_data))
+    def finish(self):
+        """
+        NetFlow packet post parsing operations
+        """
+        s = "Processed v{} packet with {} flows."\
+            .format(export.header.version, export.header.count)
+        logging.debug(s)
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
+    Recorder.set_output_file(args.output_file)
+    SoftflowUDPHandler.set_recorder(Recorder)
     SoftflowUDPHandler.set_output_file(args.output_file)
     server = SoftflowUDPHandler.get_server(args.host, args.port)
 
